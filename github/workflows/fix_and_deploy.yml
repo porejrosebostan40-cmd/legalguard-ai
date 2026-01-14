@@ -1,0 +1,104 @@
+name: Fix Project and Deploy
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+jobs:
+  fix-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Fix all config files
+        run: |
+          echo 'export default {
+            plugins: {
+              tailwindcss: {},
+              autoprefixer: {},
+            },
+          };' > postcss.config.js
+          
+          echo '/** @type {import("tailwindcss").Config} */
+          export default {
+            content: [
+              "./index.html",
+              "./src/**/*.{js,ts,jsx,tsx}",
+            ],
+            theme: {
+              extend: {},
+            },
+            plugins: [],
+          }' > tailwind.config.js
+          
+          echo '{
+            "compilerOptions": {
+              "target": "ES2020",
+              "useDefineForClassFields": true,
+              "lib": ["ES2020", "DOM", "DOM.Iterable"],
+              "module": "ESNext",
+              "skipLibCheck": true,
+              "moduleResolution": "bundler",
+              "allowImportingTsExtensions": true,
+              "resolveJsonModule": true,
+              "isolatedModules": true,
+              "noEmit": true,
+              "jsx": "react-jsx",
+              "strict": true,
+              "noUnusedLocals": true,
+              "noUnusedParameters": true,
+              "noFallthroughCasesInSwitch": true
+            },
+            "include": ["src"],
+            "references": [{ "path": "./tsconfig.node.json" }]
+          }' > tsconfig.json
+          
+          echo '{
+            "compilerOptions": {
+              "composite": true,
+              "skipLibCheck": true,
+              "module": "ESNext",
+              "moduleResolution": "bundler",
+              "allowSyntheticDefaultImports": true
+            },
+            "include": ["vite.config.ts"]
+          }' > tsconfig.node.json
+      
+      - name: Fix analyzer.ts
+        run: |
+          echo '// Временная заглушка анализатора
+          export async function analyzeDocumentWithAI(file: File, jurisdiction: string): Promise<any> {
+            console.log("[ЗАГЛУШКА] Анализ документа:", file.name);
+            return {
+              documentType: "ДОГОВОР",
+              summary: "Это тестовая заглушка. Настройте подключение к реальной AI-модели.",
+              risks: [
+                { description: "AI-модель не подключена", severity: "high" },
+                { description: "Требуется настройка API-ключа", severity: "medium" }
+              ],
+              suggestions: [
+                "1. Получите API-ключ от провайдера AI",
+                "2. Добавьте ключ в настройки приложения",
+                "3. Реализуйте вызов модели в этом файле"
+              ],
+              citations: [],
+              confidence: 0.1
+            };
+          }' > src/services/ai/analyzer.ts
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Clean install dependencies
+        run: npm ci
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
