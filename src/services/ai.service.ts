@@ -3,8 +3,7 @@ import { legalGuardPipeline } from './legalguard.pipeline';
 
 /**
  * Единая точка входа для интерфейса приложения.
- * В отличие от старой реализации здесь нет случайных/заготовленных
- * юридических выводов: неподключённый ИИ не имитируется.
+ * Неподключённый ИИ не имитируется: результат строится только из конвейера.
  */
 export class AIService {
   async fullComplaintWorkflow(
@@ -24,8 +23,53 @@ export class AIService {
     });
   }
 
+  async analyzeVerdict(documentText: string): Promise<string> {
+    const result = await this.quickAnalyze(documentText);
+    return this.formatResult(result);
+  }
+
+  async draftAppeal(request: string, caseInfo: Omit<CaseInfo, 'complaintType'>): Promise<string> {
+    const result = await this.fullComplaintWorkflow(request, {
+      ...caseInfo,
+      complaintType: 'апелляционная',
+    });
+    return this.formatResult(result);
+  }
+
+  async searchPractice(request: string, complaintType: CaseInfo['complaintType']): Promise<string> {
+    const result = await this.fullComplaintWorkflow(request, {
+      caseNumber: '',
+      courtName: '',
+      verdictDate: '',
+      clientName: '',
+      complaintType,
+    });
+    return this.formatResult(result);
+  }
+
   isAvailable(): boolean {
     return true;
+  }
+
+  private formatResult(result: LegalGuardResult): string {
+    const lines = [`Запуск: ${result.runId}`];
+    for (const item of result.trace) {
+      lines.push(`[${item.status.toUpperCase()}] ${item.code} ${item.message}`);
+    }
+
+    if (result.strategy.length > 0) {
+      lines.push('', 'Допущенные основания:');
+      result.strategy.forEach((item) => {
+        lines.push(`${item.position}. ${item.heading}`, item.argument);
+      });
+    }
+
+    if (result.finalControl?.warnings.length) {
+      lines.push('', 'Предупреждения финального контроля:');
+      lines.push(...result.finalControl.warnings.map((warning) => `— ${warning}`));
+    }
+
+    return lines.join('\n');
   }
 }
 
