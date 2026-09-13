@@ -33,6 +33,13 @@ export interface StrategyArgument {
   requestedRelief?: string;
 }
 
+export interface FinalControlResult {
+  passed: boolean;
+  blockingReasons: string[];
+  warnings: string[];
+  checkedFindingIds: string[];
+}
+
 export interface PipelineTraceEntry {
   code: string;
   stage: 'documents' | 'analyst' | 'arbiter' | 'strategist' | 'final-control';
@@ -46,6 +53,7 @@ export interface LegalGuardResult {
   findings: DeepSeekFinding[];
   arbiterFindings: ArbiterFinding[];
   strategy: StrategyArgument[];
+  finalControl: FinalControlResult | null;
   finalDocument: string | null;
   trace: PipelineTraceEntry[];
   readyForSubmission: boolean;
