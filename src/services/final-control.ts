@@ -6,8 +6,8 @@ import type {
 
 /**
  * Последний барьер перед формированием документа.
- * Этот слой не оценивает право по существу вместо Арбитра.
- * Он проверяет целостность процесса и блокирует очевидно небезопасный результат.
+ * Арбитр оценивает содержание; этот слой проверяет целостность процесса
+ * и не позволяет неподтверждённым выводам попасть в итоговую стратегию.
  */
 export function runFinalControl(
   findings: ArbiterFinding[],
@@ -18,29 +18,46 @@ export function runFinalControl(
 
   const accepted = findings.filter((item) => item.status === 'accepted');
   const acceptedIds = new Set(accepted.map((item) => item.id));
+  const knownIds = new Set(findings.map((item) => item.id));
   const strategyIds = new Set(strategy.map((item) => item.findingId));
 
   if (findings.length === 0) {
     blockingReasons.push('Арбитр не вернул ни одного вывода.');
   }
 
+  const duplicateStrategyIds = strategy
+    .map((item) => item.findingId)
+    .filter((id, index, ids) => ids.indexOf(id) !== index);
+  if (duplicateStrategyIds.length > 0) {
+    blockingReasons.push(
+      `В стратегии обнаружено повторное использование вывода: ${[...new Set(duplicateStrategyIds)].join(', ')}.`,
+    );
+  }
+
   for (const argument of strategy) {
-    if (!acceptedIds.has(argument.findingId)) {
+    if (!knownIds.has(argument.findingId)) {
+      blockingReasons.push(`Стратегия ссылается на неизвестный вывод: ${argument.findingId}.`);
+    } else if (!acceptedIds.has(argument.findingId)) {
       blockingReasons.push(
         `В стратегию попал вывод, не допущенный Арбитром: ${argument.findingId}.`,
       );
     }
   }
 
-  for (const finding of accepted) {
-    if (!strategyIds.has(finding.id)) {
-      warnings.push(`Принятый Арбитром вывод не использован в стратегии: ${finding.id}.`);
+  for (const acceptedFinding of accepted) {
+    if (!strategyIds.has(acceptedFinding.id)) {
+      warnings.push(
+        `Принятый Арбитром вывод не использован в стратегии: ${acceptedFinding.id}.`,
+      );
     }
   }
 
   for (const finding of findings) {
     if (finding.status === 'needs_review') {
-      warnings.push(`Требует дополнительной проверки: ${finding.id}.`);
+      blockingReasons.push(`Вывод требует дополнительной проверки: ${finding.id}.`);
+    }
+    if (finding.status === 'pending') {
+      blockingReasons.push(`Вывод остался без решения Арбитра: ${finding.id}.`);
     }
     if (finding.status === 'rejected' && strategyIds.has(finding.id)) {
       blockingReasons.push(`Отклонённый вывод обнаружен в стратегии: ${finding.id}.`);
