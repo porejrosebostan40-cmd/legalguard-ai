@@ -7,6 +7,7 @@ import type {
   StrategyArgument,
 } from '../core/legalguard.types';
 import { providers } from './ai/providers';
+import { runFinalControl } from './final-control';
 
 function trace(
   code: string,
@@ -59,6 +60,7 @@ export class LegalGuardPipeline {
       position: index + 1,
       heading: item.claim,
       argument: item.reasoning,
+      requestedRelief: item.appealCassationRelevance,
     }));
 
     traceLog.push(trace(
@@ -68,11 +70,14 @@ export class LegalGuardPipeline {
       `В стратегию допущено ${strategy.length} оснований; отклонённые выводы не включены.`,
     ));
 
+    const finalControl = runFinalControl(arbiterFindings, strategy);
     traceLog.push(trace(
       '05',
       'final-control',
-      'pending',
-      'Финальный юридический контроль ещё не выполнен. Документ не готов к подаче.',
+      finalControl.passed ? 'ok' : 'error',
+      finalControl.passed
+        ? 'Финальный контроль пройден. Результат может перейти к формированию документа.'
+        : `Формирование документа заблокировано: ${finalControl.blockingReasons.join(' ')}`,
     ));
 
     return {
@@ -80,6 +85,7 @@ export class LegalGuardPipeline {
       findings,
       arbiterFindings,
       strategy,
+      finalControl,
       finalDocument: null,
       trace: traceLog,
       readyForSubmission: false,
@@ -96,6 +102,7 @@ export class LegalGuardPipeline {
       findings,
       arbiterFindings: [],
       strategy: [],
+      finalControl: null,
       finalDocument: null,
       trace: traceLog,
       readyForSubmission: false,
