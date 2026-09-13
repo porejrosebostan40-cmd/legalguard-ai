@@ -63,3 +63,11 @@ export interface AIProvider {
   name: string;
   isConfigured(): boolean;
 }
+
+export interface DeepSeekAnalyzer extends AIProvider {
+  analyze(documentText: string): Promise<DeepSeekFinding[]>;
+}
+
+export interface ChatGPTArbiter extends AIProvider {
+  arbitrate(findings: DeepSeekFinding[], documentText: string): Promise<ArbiterFinding[]>;
+}
